@@ -131,11 +131,11 @@ impl Ising {
     }
 }
 
-fn run<R: Rng>(rng: &mut R, n: usize, temperature: f64) -> Option<(u8, i64, i64)> {
+fn run<R: Rng>(rng: &mut R, n: usize, temperature: f64, limit: u8) -> Option<(u8, i64, i64)> {
     let mut ising = Ising::new(n, 1.0 / temperature);
     let mut loop_count = 0;
     let done = loop {
-        if loop_count == 30 {
+        if loop_count == limit {
             break false;
         }
         if ising.rerun(rng) {
@@ -155,18 +155,49 @@ struct Args {
     /// The size of one side of a two-dimensional square lattice
     #[clap(short)]
     n: usize,
-    /// Relative temperature from the critical temperature(=2.26918531421・・・)
-    ///
-    /// t = t_c + dt
-    #[clap(long)]
-    dt: f64,
+    /// Propp-Wilson algorithm iteration limit
+    #[clap(long, default_value_t = 30)]
+    limit: u8,
+    #[clap(long, short, default_value_t = 100)]
+    samples: usize,
     #[clap(long, default_value_t = 1)]
     seed: u128,
 }
 
 fn main() {
     let tc = 2.0 / (1.0 + std::f64::consts::SQRT_2).ln();
+    let sample_targets = {
+        let mut t = Vec::new();
+        // 9,8,・・・,1
+        for i in (1..=9).rev() {
+            t.push(i as f64);
+        }
+        // 0.9,0.8,・・・,0.1
+        for i in (1..=9).rev() {
+            t.push(i as f64 / 10.0);
+        }
+        // 0.099,0.098,・・・,0.01,0,-0.01,-0.02,・・・,-0.99,-1,・・・
+        for i in (-2000..=99).rev() {
+            t.push(i as f64 / 1000.0);
+        }
+        t
+    };
     let args: Args = Args::parse();
     let mut rng = Mcg128Xsl64::new(args.seed * 2);
-    println!("{:?}", run(&mut rng, args.n, tc + args.dt));
+    for dt in sample_targets {
+        let t = tc + dt;
+        let mut ok = 0;
+        for _ in 0..args.samples {
+            if let Some((tau, m, e)) = run(&mut rng, args.n, t, args.limit) {
+                ok += 1;
+                println!("{} {} {} {} {}", t, dt, tau, m, e);
+            } else {
+                eprintln!("NG: t={} dt={}", t, dt);
+            }
+        }
+        eprintln!("stats: t={} dt={} ok={}", t, dt, ok);
+        if ok * 2 < args.samples {
+            break;
+        }
+    }
 }
