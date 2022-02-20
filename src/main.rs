@@ -1,5 +1,8 @@
+use clap::Parser;
 use rand::Rng;
 use rand_pcg::Mcg128Xsl64;
+
+const CELL_INDEX_BIT: u32 = 29;
 
 fn gibbs_sampler(beta: f64, e0: f64, e1: f64) -> f64 {
     let p0 = (-e0 * beta).exp();
@@ -20,8 +23,6 @@ pub struct Ising {
     cell_up_start: Vec<u8>,
     cell_down_start: Vec<u8>,
 }
-
-const CELL_INDEX_BIT: u32 = 29;
 
 impl Ising {
     pub fn new(n: usize, beta: f64) -> Ising {
@@ -106,7 +107,7 @@ impl Ising {
         while self.pointer > 0 {
             self.update_one();
         }
-        &self.cell_up_start == &self.cell_down_start
+        self.cell_up_start == self.cell_down_start
     }
 
     pub fn magnetization(&self) -> i64 {
@@ -149,7 +150,23 @@ fn run<R: Rng>(rng: &mut R, n: usize, temperature: f64) -> Option<(u8, i64, i64)
     }
 }
 
+#[derive(Debug, Parser)]
+struct Args {
+    /// The size of one side of a two-dimensional square lattice
+    #[clap(short)]
+    n: usize,
+    /// Relative temperature from the critical temperature(=2.26918531421・・・)
+    ///
+    /// t = t_c + dt
+    #[clap(long)]
+    dt: f64,
+    #[clap(long, default_value_t = 1)]
+    seed: u128,
+}
+
 fn main() {
-    let mut rng = Mcg128Xsl64::new(1);
-    println!("{:?}", run(&mut rng, 20, 3.0));
+    let tc = 2.0 / (1.0 + std::f64::consts::SQRT_2).ln();
+    let args: Args = Args::parse();
+    let mut rng = Mcg128Xsl64::new(args.seed * 2);
+    println!("{:?}", run(&mut rng, args.n, tc + args.dt));
 }
