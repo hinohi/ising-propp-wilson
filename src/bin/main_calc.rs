@@ -19,26 +19,14 @@ struct Args {
 
 fn main() {
     let tc = 2.0 / (1.0 + std::f64::consts::SQRT_2).ln();
-    let sample_targets = {
-        let mut t = Vec::new();
-        // 9,8,・・・,1
-        for i in (1..=9).rev() {
-            t.push(i as f64);
-        }
-        // 0.9,0.8,・・・,0.1
-        for i in (1..=9).rev() {
-            t.push(i as f64 / 10.0);
-        }
-        // 0.099,0.098,・・・,0.01,0,-0.01,-0.02,・・・,-0.99,-1,・・・
-        for i in (-2000..=99).rev() {
-            t.push(i as f64 / 1000.0);
-        }
-        t
-    };
     let args: Args = Args::parse();
     let mut rng = Mcg128Xsl64::new(args.seed * 2);
-    for dt in sample_targets {
+    for dt in (-100..=100).rev() {
+        let dt = dt as f64 / args.n as f64 / 4.0;
         let t = tc + dt;
+        if t <= 0.0 {
+            break;
+        }
         let mut ok = 0;
         for _ in 0..args.samples {
             if let Some((tau, m, e)) = run(&mut rng, args.n, t, args.limit) {
