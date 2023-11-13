@@ -29,9 +29,16 @@ fn main() {
         }
         let mut ok = 0;
         for _ in 0..args.samples {
-            if let Some((tau, m, e)) = run(&mut rng, args.n, t, args.limit) {
+            if let Some((c, ising)) = run(&mut rng, args.n, t, args.limit) {
                 ok += 1;
-                println!("{} {} {} {} {}", t, dt, tau, m, e);
+                println!(
+                    "{} {} {} {} {}",
+                    t,
+                    dt,
+                    c,
+                    ising.magnetization(),
+                    ising.energy()
+                );
             } else {
                 eprintln!("NG: t={} dt={}", t, dt);
             }

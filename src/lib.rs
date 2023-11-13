@@ -10,6 +10,7 @@ fn gibbs_sampler(beta: f64, e0: f64, e1: f64) -> f64 {
 }
 
 pub struct Ising {
+    n: usize,
     n2: usize,
     local_prob2: f64,
     local_prob4: f64,
@@ -34,6 +35,7 @@ impl Ising {
             }
         }
         Ising {
+            n,
             n2: n * n,
             local_prob2: gibbs_sampler(beta, -2.0, 2.0),
             local_prob4: gibbs_sampler(beta, -4.0, 4.0),
@@ -113,9 +115,20 @@ impl Ising {
         }
         e
     }
+
+    pub fn spin_snapshot(&self) -> String {
+        let mut ss = String::with_capacity((self.n + 1) * self.n);
+        for (i, &c) in self.cell_up_start.iter().enumerate() {
+            ss.push(if c == 0 { '0' } else { '1' });
+            if (i + 1) % self.n == 0 {
+                ss.push('\n');
+            }
+        }
+        ss
+    }
 }
 
-pub fn run<R: Rng>(rng: &mut R, n: usize, temperature: f64, limit: u8) -> Option<(u8, i64, i64)> {
+pub fn run<R: Rng>(rng: &mut R, n: usize, temperature: f64, limit: u8) -> Option<(u8, Ising)> {
     let mut ising = Ising::new(n, 1.0 / temperature);
     let mut loop_count = 0;
     let done = loop {
@@ -128,7 +141,7 @@ pub fn run<R: Rng>(rng: &mut R, n: usize, temperature: f64, limit: u8) -> Option
         loop_count += 1;
     };
     if done {
-        Some((loop_count, ising.magnetization(), ising.energy()))
+        Some((loop_count, ising))
     } else {
         None
     }
