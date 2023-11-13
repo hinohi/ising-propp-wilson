@@ -1,4 +1,4 @@
-use rand::{Rng, SeedableRng};
+use rand::{seq::SliceRandom, Rng, SeedableRng};
 use rand_pcg::Mcg128Xsl64;
 
 const CELL_INDEX_BIT: u32 = 29;
@@ -47,45 +47,44 @@ impl Ising {
     }
 
     fn setup_next<R: Rng>(&mut self, rng: &mut R) {
-        let n = self
-            .rng
-            .last()
-            .map(|(_, n)| *n * 2)
-            .unwrap_or(self.n2 as u64);
+        let n = self.rng.last().map(|(_, n)| *n * 2).unwrap_or(1);
         self.rng.push((Mcg128Xsl64::from_rng(rng).unwrap(), n));
         self.cell_up_start = vec![1; self.n2];
         self.cell_down_start = vec![0; self.n2];
     }
 
     fn update_all(&mut self) {
-        for (rng, n) in self.rng.iter().rev() {
+        for (rng, steps) in self.rng.iter().rev() {
             let mut rng = rng.clone();
-            for _ in 0..*n {
-                let index = rng.gen_range(0..self.n2);
-                let threshold = match rng.gen::<f64>() {
-                    p if p < self.local_prob4 => {
-                        self.cell_up_start[index] = 0;
-                        self.cell_down_start[index] = 0;
-                        continue;
+            for _ in 0..*steps {
+                let mut index = (0..self.n2).collect::<Vec<_>>();
+                index.shuffle(&mut rng);
+                for index in index {
+                    let threshold = match rng.gen::<f64>() {
+                        p if p < self.local_prob4 => {
+                            self.cell_up_start[index] = 0;
+                            self.cell_down_start[index] = 0;
+                            continue;
+                        }
+                        p if p < self.local_prob2 => 4,
+                        p if p < 0.5 => 3,
+                        p if p < 1.0 - self.local_prob2 => 2,
+                        p if p < 1.0 - self.local_prob4 => 1,
+                        _ => {
+                            self.cell_up_start[index] = 1;
+                            self.cell_down_start[index] = 1;
+                            continue;
+                        }
+                    };
+                    let mut m_up_start = 0;
+                    let mut m_down_start = 0;
+                    for j in self.neighbors[index] {
+                        m_up_start += self.cell_up_start[j];
+                        m_down_start += self.cell_down_start[j];
                     }
-                    p if p < self.local_prob2 => 4,
-                    p if p < 0.5 => 3,
-                    p if p < 1.0 - self.local_prob2 => 2,
-                    p if p < 1.0 - self.local_prob4 => 1,
-                    _ => {
-                        self.cell_up_start[index] = 1;
-                        self.cell_down_start[index] = 1;
-                        continue;
-                    }
-                };
-                let mut m_up_start = 0;
-                let mut m_down_start = 0;
-                for j in self.neighbors[index] {
-                    m_up_start += self.cell_up_start[j];
-                    m_down_start += self.cell_down_start[j];
+                    self.cell_up_start[index] = if threshold <= m_up_start { 1 } else { 0 };
+                    self.cell_down_start[index] = if threshold <= m_down_start { 1 } else { 0 };
                 }
-                self.cell_up_start[index] = if threshold <= m_up_start { 1 } else { 0 };
-                self.cell_down_start[index] = if threshold <= m_down_start { 1 } else { 0 };
             }
         }
     }
